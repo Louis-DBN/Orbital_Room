@@ -81,11 +81,36 @@ public class HandGuidedPlacement : MonoBehaviour{
     private Rigidbody grabbedObject = null;
 
     void Start(){
+        if (hand == null){
+            hand = GetComponent<OVRHand>();
+            if (hand == null){
+                OVRHand[] hands = FindObjectsByType<OVRHand>(FindObjectsSortMode.None);
+                foreach (var h in hands){
+                    if (h.GetHandType() == OVRHand.HandType.HandRight){
+                        hand = h;
+                        break;
+                    }
+                    if (hand == null) hand = h;
+                }
+            }
+        }
+
+        if (cubePrefab == null){
+            GameObject existingCube = GameObject.Find("Cube");
+            if (existingCube != null){
+                cubePrefab = existingCube;
+            }
+        }
+
+        Shader rayShader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+        Material greenMat = new Material(rayShader) { color = Color.green };
+        Material blueMat = new Material(rayShader) { color = Color.blue };
+
         // place ray
         placeRay = gameObject.AddComponent<LineRenderer>();
         placeRay.startWidth = 0.01f;
         placeRay.endWidth = 0.01f;
-        placeRay.material = new Material(Shader.Find("Sprites/Default"));
+        placeRay.material = greenMat;
         placeRay.startColor = Color.green;
         placeRay.endColor = Color.green;
         placeRay.positionCount = 2;
@@ -95,7 +120,7 @@ public class HandGuidedPlacement : MonoBehaviour{
         grabRay = new GameObject("GrabRay").AddComponent<LineRenderer>();
         grabRay.startWidth = 0.01f;
         grabRay.endWidth = 0.01f;
-        grabRay.material = new Material(Shader.Find("Sprites/Default"));
+        grabRay.material = blueMat;
         grabRay.startColor = Color.blue;
         grabRay.endColor = Color.blue;
         grabRay.positionCount = 2;
@@ -182,11 +207,11 @@ public class HandGuidedPlacement : MonoBehaviour{
                 bool indexExtended = hand.GetFingerPinchStrength(OVRHand.HandFinger.Index) < 0.5f;
                 bool middlePoke = hand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.4f;
                 bool ringPoke = hand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.4f;
-                bool keyboardPoke = Keyboard.current.pKey.isPressed;
+                bool keyboardPoke = Keyboard.current != null && Keyboard.current.pKey.isPressed;
                 return (indexExtended && middlePoke && ringPoke) || keyboardPoke;
             case InteractionType.Grab:
                 bool indexGrab = hand.GetFingerIsPinching(OVRHand.HandFinger.Index);
-                bool keyboardGrab = Keyboard.current.gKey.isPressed;
+                bool keyboardGrab = Keyboard.current != null && Keyboard.current.gKey.isPressed;
                 return indexGrab || keyboardGrab;
             default:
                 return false;
