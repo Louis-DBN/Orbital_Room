@@ -173,6 +173,7 @@ public class HandGuidedPlacement : MonoBehaviour{
         }
 
         DetectSwipe();
+        wasActive = placeActive;
     }
 
     bool CheckInteraction(InteractionType type){
@@ -247,7 +248,8 @@ public class HandGuidedPlacement : MonoBehaviour{
     }
 
     void DetectSwipe(){
-        Vector3 handPos = hand.transform.position;
+        Transform rigRoot = hand.transform.root;
+        Vector3 handPos = rigRoot.InverseTransformPoint(hand.transform.position);
 
         if (!trackingSwipe){
             trackingSwipe = true;
@@ -259,7 +261,8 @@ public class HandGuidedPlacement : MonoBehaviour{
             float swipeDuration = Time.time - swipeStartTime;
 
             if (swipeDist >= swipeThreshold && swipeDuration <= swipeTime){
-                Vector3 swipeDirection = (handPos - swipeStartPos).normalized;
+                Vector3 localDir = (handPos - swipeStartPos).normalized;
+                Vector3 swipeDirection = rigRoot.TransformDirection(localDir);
                 SpawnAndThrowCube(swipeDirection);
                 trackingSwipe = false;
             }

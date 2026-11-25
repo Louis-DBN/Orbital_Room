@@ -1518,9 +1518,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 363a770ec43e14b4f948ec156e18cf43, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ovrHand: {fileID: 2129225078}
+  ovrHand: {fileID: 2123025225}
   rightHand: {fileID: 0}
-  handDirection: {fileID: 2129225072}
+  handDirection: {fileID: 2123025219}
   moveSpeed: 1.5
   invert: 0
 --- !u!1 &2091357496
@@ -2105,7 +2105,7 @@ MonoBehaviour:
   hand: {fileID: 2129225078}
   cubePrefab: {fileID: 141290175}
   placeInteractionType: 1
-  grabInteractionType: 9
+  grabInteractionType: 7
   spawnDistance: 0.3
   rayDistance: 5
   cubeSpeed: 2
