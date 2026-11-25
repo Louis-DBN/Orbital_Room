@@ -25,13 +25,12 @@ When code is added, a practical starting point is:
 
 ```text
 Assets/
-  OrbitalRoom/
-    Scenes/
-    Features/
-      <FeatureName>/
-        Runtime/
-        Tests/
-    Shared/
+  Scenes/
+  Features/
+    <FeatureName>/
+      Runtime/
+      Tests/
+  Shared/
 ```
 
 Keep a feature's code and related assets together where Unity workflows allow it. Split `Runtime` further into domain, application, and adapters only when the feature's complexity benefits from that distinction. Create assembly definitions only when there is a concrete compile-time or test-isolation benefit. Do not add empty folders or assemblies just to mirror this example.
