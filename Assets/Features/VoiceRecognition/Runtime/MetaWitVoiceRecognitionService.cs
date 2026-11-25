@@ -2,7 +2,7 @@ using System;
 using Oculus.Voice;
 using UnityEngine;
 
-namespace OrbitalRoom.Features.VoiceRecognition
+namespace Features.VoiceRecognition
 {
     /// <summary>
     /// Adapter between the Meta Voice SDK/AppVoiceExperience component and the voice recognition boundary.

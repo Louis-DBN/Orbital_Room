@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace OrbitalRoom.Features.VoiceRecognition
+namespace Features.VoiceRecognition
 {
     /// <summary>
     /// Logs the lifecycle of the configured voice recognition service.

@@ -1,6 +1,6 @@
 using System;
 
-namespace OrbitalRoom.Features.VoiceRecognition
+namespace Features.VoiceRecognition
 {
     /// <summary>
     /// Application-facing boundary for starting voice capture and receiving transcriptions.
