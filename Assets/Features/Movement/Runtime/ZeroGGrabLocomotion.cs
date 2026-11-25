@@ -29,15 +29,17 @@ namespace Features.Movement
         [Min(0.02f)]
         [SerializeField] private float grabRadius = 0.22f;
         [Range(0.1f, 0.95f)]
-        [SerializeField] private float closeCurlThreshold = 0.42f;
+        [SerializeField] private float closeCurlThreshold = 0.72f;
         [Range(0.05f, 0.85f)]
-        [SerializeField] private float releaseCurlThreshold = 0.24f;
+        [SerializeField] private float releaseCurlThreshold = 0.45f;
         [Range(1, 4)]
-        [SerializeField] private int requiredCurledFingers = 3;
+        [SerializeField] private int requiredCurledFingers = 4;
         [SerializeField] private bool requireHighConfidenceToStart = false;
         [SerializeField] private LayerMask grabbableLayers = ~0;
 
         [Header("Zero-G Physics")]
+        [Range(0.5f, 2.5f)]
+        [SerializeField] private float grabPullMultiplier = 1.0f;
         [Min(0.1f)]
         [SerializeField] private float maxSpeed = 6.0f;
         [Range(0.5f, 3.0f)]
@@ -55,12 +57,15 @@ namespace Features.Movement
         [Min(0f)]
         [SerializeField] private float thrusterAcceleration = 1.8f;
 
-        [Header("Body Capsule Collision")]
+        [Header("Body Collision")]
         [Min(0.05f)]
         [SerializeField] private float bodyRadius = 0.22f;
         [Min(0.3f)]
         [SerializeField] private float bodyHeight = 0.72f;
         [SerializeField] private float bodyCenterYOffset = -0.20f;
+        [Min(0.05f)]
+        [Tooltip("Smaller head-only radius while grabbing so desks/ledges do not snag your pull.")]
+        [SerializeField] private float grabHeadCollisionRadius = 0.13f;
         [SerializeField] private LayerMask wallCollisionLayers = ~0;
 
         private struct HandBones
@@ -225,18 +230,19 @@ namespace Features.Movement
             {
                 if (!wasAnyHandGrabbing)
                 {
-                    // Arrest all 0G inertia the instant a hand latches onto a bar or wall.
+                    // Arrest all 0G inertia and disable Rigidbody interpolation so LateUpdate pulls 1:1 with zero lag.
                     rigBody.linearVelocity = Vector3.zero;
                     rigBody.angularVelocity = Vector3.zero;
+                    rigBody.interpolation = RigidbodyInterpolation.None;
                     rigBody.isKinematic = true;
                     velocityHistory.Clear();
                 }
 
                 if (grabbingCount > 0)
                 {
-                    Vector3 desiredDelta = totalPull / grabbingCount;
+                    Vector3 desiredDelta = (totalPull / grabbingCount) * grabPullMultiplier;
                     Vector3 startPos = transform.position;
-                    MoveKinematicWithWallClamp(desiredDelta);
+                    MoveKinematicHeadWithWallClamp(desiredDelta);
                     Vector3 appliedDelta = transform.position - startPos;
                     RecordPullVelocitySample(appliedDelta / dt);
                 }
@@ -254,6 +260,7 @@ namespace Features.Movement
             {
                 // Restore free 0G Rigidbody motion and impart launch momentum from recent pull.
                 rigBody.isKinematic = false;
+                rigBody.interpolation = RigidbodyInterpolation.Interpolate;
                 rigBody.linearDamping = zeroGDamping;
                 rigBody.linearVelocity = ComputeLaunchVelocity();
                 velocityHistory.Clear();
@@ -302,6 +309,9 @@ namespace Features.Movement
                 grabbed = null;
             }
 
+            // Track the stable hand-root anchor for 1:1 pull (avoids finger-curl bone shift while pulling).
+            Vector3 anchorWorldPos = hand.transform.position;
+
             if (grabbed == null)
             {
                 if (requireHighConfidenceToStart && !hand.IsDataHighConfidence)
@@ -311,14 +321,14 @@ namespace Features.Movement
                     return false;
 
                 grabbedSurfaces[index] = nearbySurface;
-                previousLocalPalmPositions[index] = trackingSpace.InverseTransformPoint(palmPos);
+                previousLocalPalmPositions[index] = trackingSpace.InverseTransformPoint(anchorWorldPos);
                 return false;
             }
 
-            Vector3 currentLocalPalm = trackingSpace.InverseTransformPoint(palmPos);
+            Vector3 currentLocalAnchor = trackingSpace.InverseTransformPoint(anchorWorldPos);
             // Tracking-space coordinates stay independent of rig translation, avoiding feedback loops.
-            worldPull = trackingSpace.TransformVector(previousLocalPalmPositions[index] - currentLocalPalm);
-            previousLocalPalmPositions[index] = currentLocalPalm;
+            worldPull = trackingSpace.TransformVector(previousLocalPalmPositions[index] - currentLocalAnchor);
+            previousLocalPalmPositions[index] = currentLocalAnchor;
             return true;
         }
 
@@ -445,7 +455,7 @@ namespace Features.Movement
                     Vector3 palmForward = palmDir.normalized;
                     for (int f = 0; f < FingerCount; f++)
                     {
-                        float curl = GetPinchFallback(hand, f);
+                        float curl = 0f;
                         Transform proximal = bones.Proximals[f];
                         Transform tip = bones.Tips[f];
                         if (proximal != null && tip != null)
@@ -454,8 +464,8 @@ namespace Features.Movement
                             if (fingerVec.sqrMagnitude > 1e-6f)
                             {
                                 float alignment = Vector3.Dot(fingerVec.normalized, palmForward);
-                                float boneCurl = Mathf.Clamp01((0.65f - alignment) / 0.9f);
-                                curl = Mathf.Max(curl, boneCurl);
+                                // Require fingers to curl back past perpendicular toward the palm for a full fist.
+                                curl = Mathf.Clamp01((0.35f - alignment) / 0.75f);
                             }
                         }
 
@@ -617,7 +627,9 @@ namespace Features.Movement
                 if (candidate.isTrigger && candidate.GetComponent<Renderer>() == null)
                     continue;
 
-                Vector3 closest = candidate.ClosestPoint(palmPos);
+                Vector3 closest = (candidate is MeshCollider meshCol && !meshCol.convex)
+                    ? candidate.ClosestPointOnBounds(palmPos)
+                    : candidate.ClosestPoint(palmPos);
                 float distSq = (closest - palmPos).sqrMagnitude;
                 if (distSq < bestDistSq)
                 {
@@ -638,14 +650,9 @@ namespace Features.Movement
             bodyCollider.transform.rotation = Quaternion.identity;
         }
 
-        private void MoveKinematicWithWallClamp(Vector3 delta)
+        private void MoveKinematicHeadWithWallClamp(Vector3 delta)
         {
-            if (bodyCollider == null)
-            {
-                transform.position += delta;
-                return;
-            }
-
+            Vector3 headPos = headAnchor != null ? headAnchor.position : transform.position + Vector3.up * 1.5f;
             Vector3 remaining = delta;
             const float skin = 0.005f;
 
@@ -655,32 +662,28 @@ namespace Features.Movement
                 if (dist < 1e-5f)
                     break;
 
-                GetBodyCapsuleEndpoints(out Vector3 p0, out Vector3 p1);
                 Vector3 dir = remaining / dist;
-
-                if (!SweepCapsuleIgnoringRig(p0, p1, bodyRadius, dir, dist + skin, out RaycastHit hit))
+                if (!SweepSphereIgnoringRig(headPos, grabHeadCollisionRadius, dir, dist + skin, out RaycastHit hit))
                 {
                     transform.position += remaining;
-                    SyncBodyColliderTransform();
                     break;
                 }
 
                 float moveDist = Mathf.Max(0f, hit.distance - skin);
                 Vector3 step = dir * moveDist;
                 transform.position += step;
-                SyncBodyColliderTransform();
-
+                headPos += step;
                 remaining = Vector3.ProjectOnPlane(remaining - step, hit.normal);
             }
 
-            DepenetrateFromWalls();
+            SyncBodyColliderTransform();
         }
 
-        private bool SweepCapsuleIgnoringRig(
-            Vector3 p0, Vector3 p1, float radius, Vector3 dir, float maxDist, out RaycastHit validHit)
+        private bool SweepSphereIgnoringRig(
+            Vector3 origin, float radius, Vector3 dir, float maxDist, out RaycastHit validHit)
         {
-            RaycastHit[] hits = Physics.CapsuleCastAll(
-                p0, p1, radius, dir, maxDist, wallCollisionLayers, QueryTriggerInteraction.Ignore);
+            RaycastHit[] hits = Physics.SphereCastAll(
+                origin, radius, dir, maxDist, wallCollisionLayers, QueryTriggerInteraction.Ignore);
 
             bool found = false;
             float closest = float.MaxValue;
@@ -701,46 +704,6 @@ namespace Features.Movement
             }
 
             return found;
-        }
-
-        private void DepenetrateFromWalls()
-        {
-            if (bodyCollider == null) return;
-
-            for (int iter = 0; iter < 2; iter++)
-            {
-                GetBodyCapsuleEndpoints(out Vector3 p0, out Vector3 p1);
-                int count = Physics.OverlapCapsuleNonAlloc(
-                    p0, p1, bodyRadius, overlapBuffer, wallCollisionLayers, QueryTriggerInteraction.Ignore);
-
-                bool moved = false;
-                for (int i = 0; i < count; i++)
-                {
-                    Collider col = overlapBuffer[i];
-                    if (col == null || col.transform.IsChildOf(transform))
-                        continue;
-
-                    if (Physics.ComputePenetration(
-                        bodyCollider, bodyCollider.transform.position, bodyCollider.transform.rotation,
-                        col, col.transform.position, col.transform.rotation,
-                        out Vector3 dir, out float dist))
-                    {
-                        transform.position += dir * dist;
-                        SyncBodyColliderTransform();
-                        moved = true;
-                    }
-                }
-
-                if (!moved) break;
-            }
-        }
-
-        private void GetBodyCapsuleEndpoints(out Vector3 bottom, out Vector3 top)
-        {
-            Vector3 center = bodyCollider.transform.position;
-            float halfSegment = Mathf.Max(0f, bodyHeight * 0.5f - bodyRadius);
-            bottom = center - Vector3.up * halfSegment;
-            top = center + Vector3.up * halfSegment;
         }
 
         private void ReleaseHand(int index)
@@ -766,6 +729,7 @@ namespace Features.Movement
             {
                 rigBody.linearVelocity = Vector3.zero;
                 rigBody.isKinematic = false;
+                rigBody.interpolation = RigidbodyInterpolation.Interpolate;
             }
         }
 

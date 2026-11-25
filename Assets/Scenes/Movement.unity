@@ -3033,13 +3033,14 @@ MonoBehaviour:
   rightHand: {fileID: 2129225078}
   rightSkeleton: {fileID: 2129225077}
   grabRadius: 0.22
-  closeCurlThreshold: 0.42
-  releaseCurlThreshold: 0.24
-  requiredCurledFingers: 3
+  closeCurlThreshold: 0.72
+  releaseCurlThreshold: 0.45
+  requiredCurledFingers: 4
   requireHighConfidenceToStart: 0
   grabbableLayers:
     serializedVersion: 2
     m_Bits: 4294967295
+  grabPullMultiplier: 1
   maxSpeed: 6
   launchMultiplier: 1.25
   velocityHistoryWindow: 0.12
@@ -3050,6 +3051,7 @@ MonoBehaviour:
   bodyRadius: 0.22
   bodyHeight: 0.72
   bodyCenterYOffset: -0.2
+  grabHeadCollisionRadius: 0.13
   wallCollisionLayers:
     serializedVersion: 2
     m_Bits: 4294967295
