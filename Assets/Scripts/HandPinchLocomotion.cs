@@ -25,7 +25,8 @@ public class HandPinchLocomotionBB : MonoBehaviour
             OVRHand[] hands = FindObjectsByType<OVRHand>(FindObjectsSortMode.None);
             foreach (var h in hands)
             {
-                if (h.GetHandType() == OVRHand.HandType.HandRight)
+                var skeletonType = ((OVRSkeleton.IOVRSkeletonDataProvider)h).GetSkeletonType();
+                if (skeletonType == OVRSkeleton.SkeletonType.HandRight || skeletonType == OVRSkeleton.SkeletonType.XRHandRight)
                 {
                     ovrHand = h;
                     break;

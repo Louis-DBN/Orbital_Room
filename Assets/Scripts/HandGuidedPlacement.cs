@@ -86,7 +86,8 @@ public class HandGuidedPlacement : MonoBehaviour{
             if (hand == null){
                 OVRHand[] hands = FindObjectsByType<OVRHand>(FindObjectsSortMode.None);
                 foreach (var h in hands){
-                    if (h.GetHandType() == OVRHand.HandType.HandRight){
+                    var skeletonType = ((OVRSkeleton.IOVRSkeletonDataProvider)h).GetSkeletonType();
+                    if (skeletonType == OVRSkeleton.SkeletonType.HandRight || skeletonType == OVRSkeleton.SkeletonType.XRHandRight){
                         hand = h;
                         break;
                     }
